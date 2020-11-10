@@ -7,15 +7,14 @@ import os
 import rasterio
 from rasterio.warp import reproject
 from rasterio.enums import Resampling
-from dev_unbalanced import barycenter_unbalanced_sinkhorn_dev,barycenter_unbalanced_sinkhorn,barycenter_unbalanced_stabilized,barycenter_unbalanced_stabilized_dev,barycenter_sinkhorn_dev,barycenter_sinkhorn
+from utils.dev_unbalanced import barycenter_unbalanced_sinkhorn_dev,barycenter_unbalanced_sinkhorn,barycenter_unbalanced_stabilized,barycenter_unbalanced_stabilized_dev,barycenter_sinkhorn_dev,barycenter_sinkhorn
 from numba import njit
 
-#place = "hassirmel"
-#place = "pennsylvania"
+
 #place = "pennsylvania"
 place = "permian"
-#place = "dhakka"
-#place="middle_east"
+
+
 
 if place == "hassirmel" :
     basepath = ''

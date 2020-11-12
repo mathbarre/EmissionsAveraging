@@ -1576,4 +1576,190 @@ def barycenter_sinkhorn(A, M, reg, weights=None,
         return q
 
 
+def prod_separable_logspace(Cx,Cy,gamma,v):
+    """
+    implementation of Algorithm 3 of 
+    Wasserstein Dictionary Learning: Optimal Transport-based unsupervised non-linear dictionary learning
+    (Morgan Schmitz, Matthieu Heitz, Nicolas Bonneel, Fred Maurice Ngolè Mboula, David Coeurjolly, Marco Cuturi, Gabriel Peyré, Jean-Luc Starck)
+    ----------
+    Input
+    Cx : np.ndarray (dimx, dimx)
+        x part of separable cost matrix.
+    Cy : np.ndarray (dimy, dimy)
+        y part of separable cost matrix.
+    gamma : float
+        regularization parameter.
+    v : np.ndarray(dimx,dimy,n_hist)
+        input matrix in logspace
+    ----------
+    Output
+    r : np.ndarray(dimx,dimy)
+        result of product (exp(-Cx/gamma)X exp(-Cy/gamma))*v in logspace
+    """
+    dimx,dimy,n_hist = v.shape
+    R = np.zeros(v.shape)
+    for i in range(n_hist):
+        x = np.zeros((dimy,dimx,dimy))
+        for l in range(dimy):
+            x[l,:,:] = -Cy[:,l]/gamma + v[:,l,i,np.newaxis]
+        mx = np.max(x,axis=0)
+        mx[mx==-np.inf]=0
+        A = np.log(np.exp(x-mx).sum(axis=0))+mx
+        y = np.zeros((dimx,dimx,dimy))
+        for k in range(dimx):
+            y[k,:,:] = -Cx[:,k,np.newaxis]/gamma + A[k,:]
+        my = np.max(y,axis=0)
+        my[my==-np.inf]=0
+        R[:,:,i] = np.log(np.exp(y-my).sum(axis=0))+my
+    return R
 
+@njit
+def nb_max_axis_0(arr):
+    # max that works with numba
+    n = arr.shape[0]
+    mx = arr[0]
+    for i in range(n):
+        mx = np.maximum(mx,arr[i])
+    return mx
+
+@njit
+def nb_prod_separable_logspace(Cx,Cy,gamma,v):
+    
+    dimx,dimy,n_hist = v.shape
+    R = np.zeros(v.shape)
+    v_ = np.zeros((dimx,dimy,n_hist,1))
+    v_[:,:,:,0] = v
+    for i in range(n_hist):
+        x = np.zeros((dimy,dimx,dimy))
+        for l in range(dimy):
+            x[l,:,:] = -Cy[:,l]/gamma + v_[:,l,i,:]
+        mx = nb_max_axis_0(x)
+        for xi in range(dimx):
+            for yi in range(dimy):
+                if mx[xi,yi] == -np.inf :
+                    mx[xi,yi]=0
+        A = np.log(np.exp(x-mx).sum(axis=0))+mx
+        y = np.zeros((dimx,dimx,dimy))
+        Cx_ = np.zeros((dimx,dimx,1))
+        Cx_[:,:,0] = Cx
+        for k in range(dimx):
+            y[k,:,:] = -Cx_[:,k,:]/gamma + A[k,:]
+        my = nb_max_axis_0(y)
+        for xi in range(dimx):
+            for yi in range(dimy):
+                if my[xi,yi] == -np.inf :
+                    my[xi,yi]=0
+        R[:,:,i] = np.log(np.exp(y-my).sum(axis=0))+my
+    return R
+
+
+def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
+                                   numItermax=1000, stopThr=1e-6,
+                                   verbose=False, log=False,logspace=True):
+    """
+    ----------
+    A : np.ndarray (dim,dim, n_hists)
+        `n_hists` training distributions a_i of dimension dimxdim
+    Cx : np.ndarray (dim, dim)
+        x part of separable cost matrix for OT.
+    Cy : np.ndarray (dim, dim)
+        y part of separable cost matrix for OT.
+    reg : float
+        Entropy regularization term > 0
+    reg_m: float
+        Marginal relaxation term > 0
+    weights : np.ndarray (n_hists,) optional
+        Weight of each distribution (barycentric coodinates)
+        If None, uniform weights are used.
+    numItermax : int, optional
+        Max number of iterations
+    stopThr : float, optional
+        Stop threshol on error (> 0)
+    verbose : bool, optional
+        Print information along iterations
+    log : bool, optional
+        record log if True
+    logspace : bool, optional
+        compuation done in logspace if True
+    Returns
+    -------
+    q : (dim,) ndarray
+        Unbalanced Wasserstein barycenter
+    log : dict
+        log dictionary return only if log==True in parameters
+    References
+    ----------
+    .. [3] Benamou, J. D., Carlier, G., Cuturi, M., Nenna, L., & Peyré, G.
+        (2015). Iterative Bregman projections for regularized transportation
+        problems. SIAM Journal on Scientific Computing, 37(2), A1111-A1138.
+    .. [10] Chizat, L., Peyré, G., Schmitzer, B., & Vialard, F. X. (2016).
+        Scaling algorithms for unbalanced transport problems. arXiv preprin
+        arXiv:1607.05816.
+    """
+    dimx,dimy, n_hists = A.shape
+    if weights is None:
+        weights = np.ones(n_hists) / n_hists
+    else:
+        assert(len(weights) == A.shape[2])
+
+    if log:
+        log = {'err': []}
+
+    #K = np.exp(- M / reg)
+
+    fi = reg_m / (reg_m + reg)
+
+    v = np.zeros((dimx,dimy,1))
+    u = np.zeros((dimx,dimy))
+    q = np.zeros((dimx,dimy))
+    err = 1.
+
+    for i in range(numItermax):
+        uprev = u.copy()
+        vprev = v.copy()
+        qprev = q.copy()
+
+        lKv = nb_prod_separable_logspace(Cx,Cy,reg,v)
+        #u = (A / Kv) ** fi
+        u = fi*(np.log(A)-lKv)
+        #Ktu = K.T.dot(u)
+        lKtu = nb_prod_separable_logspace(Cx.T,Cy.T,reg,u)
+        #q = ((Ktu ** (1 - fi)).dot(weights))
+        mlktu = (1-fi)*np.max(lKtu,axis=2)
+        q = (1 / (1 - fi))*((np.log(np.exp((1-fi)*lKtu-mlktu[:,:,np.newaxis]).mean(axis=2))) + mlktu)
+        #q = q ** (1 / (1 - fi))
+        Q = q[:,:,np.newaxis]
+        #v = (Q / Ktu) ** fi
+        v = fi*(Q-lKtu)
+
+        if (np.any(lKtu == -np.inf)
+                or np.any(np.isnan(u)) or np.any(np.isnan(v))):
+            # we have reached the machine precision
+            # come back to previous solution and quit loop
+            warnings.warn('Numerical errors at iteration %s' % i)
+            u = uprev
+            v = vprev
+            #q = qprev
+            break
+            # compute change in barycenter
+        err = abs(np.exp(qprev)*(1-np.exp(q-qprev))).max()
+        err /= max(abs(np.exp(q)).max(), abs(np.exp(qprev)).max(), 1.)
+        if log:
+            log['err'].append(err)
+        # if barycenter did not change + at least 10 iterations - stop
+        if err < stopThr and i > 10:
+            break
+
+        if verbose:
+            if i % 10 == 0:
+                print(
+                    '{:5s}|{:12s}'.format('It.', 'Err') + '\n' + '-' * 19)
+            print('{:5d}|{:8e}|'.format(i, err))
+
+    if log:
+        log['niter'] = i
+        log['logu'] = (u + 1e-300)
+        log['logv'] = (v + 1e-300)
+        return q, log
+    else:
+        return q

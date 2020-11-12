@@ -7,7 +7,7 @@ import os
 import rasterio
 from rasterio.warp import reproject
 from rasterio.enums import Resampling
-from utils.dev_unbalanced import barycenter_unbalanced_sinkhorn_dev,barycenter_unbalanced_sinkhorn,barycenter_unbalanced_stabilized,barycenter_unbalanced_stabilized_dev,barycenter_sinkhorn_dev,barycenter_sinkhorn
+from utils.dev_unbalanced import barycenter_unbalanced_sinkhorn_dev,barycenter_unbalanced_sinkhorn,barycenter_unbalanced_stabilized,barycenter_unbalanced_stabilized_dev,barycenter_sinkhorn_dev,barycenter_sinkhorn, barycenter_unbalanced_sinkhorn2D
 from numba import njit
 
 
@@ -31,8 +31,8 @@ else :
 
 #%% Form data matrix
 
-dimx = 20
-dimy= 30
+dimx = 78
+dimy= 87
 # dimx = 78
 # dimy = 87
 #dimx = 64
@@ -152,8 +152,11 @@ M = ot.dist(x)
 M = M/ M.max()
 
 
-
-
+Cx = ot.dist(dimx_true/dimx*np.array(np.nonzero(np.ones((dimx)))).T)
+Cy = ot.dist(dimy_true/dimy*np.array(np.nonzero(np.ones((dimy)))).T)
+costMax = (Cx.max()+Cy.max())
+Cx = Cx/costMax
+Cy = Cy/costMax
 
 M_ = np.zeros((A.shape[1],A.shape[1],1))
 M_[:,:,0]= M
@@ -186,16 +189,19 @@ for i in range(A.shape[0]):
 
 #%%
 
-reg=0.0025
-reg_m=0.4
-
-G1=barycenter_unbalanced_stabilized_dev(np.transpose(A[:,:]), Ms, reg, reg_m,weights=None,numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
+reg=0.003
+reg_m=0.5
+Tot = A.reshape((A.shape[0],dimx,dimy))
+Tot = Tot.swapaxes(0,1).swapaxes(1,2)
+#G1=barycenter_unbalanced_stabilized_dev(np.transpose(A[:,:]), Ms, reg, reg_m,weights=None,numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
 G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
 G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
+G2D =  barycenter_unbalanced_sinkhorn2D(Tot, Cx,Cy, reg, reg_m, weights=None, numItermax=1000, stopThr=1e-4,verbose=True, log=True,logspace=True)
 
 imgwind=G1[0].reshape(img1.shape)
 img_l2=G2[0][:].reshape(img1.shape)
 img_wfr=G3[0][:].reshape(img1.shape)
+img_2D = np.exp(G2D[0])
 #imgwind=G1[0].reshape(img1.shape)
 
 # Compute simple mean
@@ -224,6 +230,8 @@ pl.colorbar()
 pl.axis('off')
 
 pl.show()
+
+
 
 
 # %%

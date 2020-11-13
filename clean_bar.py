@@ -63,7 +63,6 @@ for root, dirs, files in os.walk(basepath):
             dta = np.nan_to_num(data[0,:,:], copy=True, nan=0.0)
             
             
-            
 
             if ((data[1,:,:]>= quality_thres)*dta).sum() >0 :
                 w2 = np.average(data[3,:,:],weights=(data[1,:,:]>= quality_thres)*dta) # West-East
@@ -73,7 +72,7 @@ for root, dirs, files in os.walk(basepath):
                 w1 = 0
                 w2 = 0
             a=np.clip(data[0,:,:].flatten(),0,np.inf)
-
+            
             if np.nansum(a) != 0 :
                 count_nan = (count_nan + np.isnan(data[0,:,:])*1)
                 if (A==0).all():
@@ -82,6 +81,7 @@ for root, dirs, files in os.walk(basepath):
                     weight = sum(1-(np.isnan(a)))
                 else:
                     A=np.vstack((A,a))
+                   
                     #weight = np.vstack((weight,np.nansum(a)))
                     weight = np.vstack((weight,sum(1-(np.isnan(a)))))
                 if (wind==0).all():
@@ -89,9 +89,10 @@ for root, dirs, files in os.walk(basepath):
                 else:
                     wind= np.hstack((wind,np.array([[w1],[w2]])))
 #A=A/np.nanmax(A.flatten())  
-A = A[:,:]
-A=A/np.nanmedian(A.flatten()) 
-A=np.clip(A,0,10) # CHECK: large outliers
+med = np.nanmedian(A.flatten()) 
+mn = np.nanmin(A.flatten())
+A=(A-mn)/med
+#A=np.clip(A,0,10) # CHECK: large outliers
 np.nan_to_num(A, copy=False, nan=0.0) # Fill nans with zeros
 weight= weight/weight.sum()
 wind= wind[:,:]
@@ -192,29 +193,33 @@ Tot = A.reshape((A.shape[0],dimx,dimy))
 Tot = Tot.swapaxes(0,1).swapaxes(1,2)
 #G1=barycenter_unbalanced_stabilized_dev(np.transpose(A[:,:]), Ms, reg, reg_m,weights=None,numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
 #G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
-G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, 3*reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
+G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
 G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=False)
 
 
 #imgwind=G1[0].reshape(img1.shape)
 img_l2=G2[0][:].reshape(img1.shape)   
 #img_wfr=G3[0][:].reshape(img1.shape)
-img_2D = np.exp(G2D[0])
+img_2D = G2D[0]
 #imgwind=G1[0].reshape(img1.shape)
-pl.imshow(img_2D, cmap=cm)
 
-pl.imshow(Tot[:,:,:].mean(axis=2), cmap=cm)
 # Compute simple mean
 imgm=A[:,:].mean(axis=0).reshape(img1.shape)
 # Plot result
 cm = 'OrRd'
-ax1 = plt.subplot(141)
+ax1 = plt.subplot(131)
 pl.imshow(imgm, cmap=cm)
 pl.colorbar()
 
 pl.axis('off')
-ax1 = plt.subplot(142)
+ax1 = plt.subplot(132)
 pl.imshow(img_l2, cmap=cm)
+pl.colorbar()
+
+pl.axis('off')
+
+ax1 = plt.subplot(133)
+pl.imshow(img_2D, cmap=cm)
 pl.colorbar()
 
 pl.axis('off')

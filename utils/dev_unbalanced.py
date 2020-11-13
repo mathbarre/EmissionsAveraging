@@ -1795,9 +1795,9 @@ def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
             log['niter'] = i
             log['logu'] = ((u + 1e-300))
             log['logv'] = ((v + 1e-300))
-            return q, log
+            return np.exp(q), log
         else:
-            return q
+            return np.exp(q)
     else :
         v = np.ones((dimx,dimy,1))/dimx/dimy
         u = np.ones((dimx,dimy))/dimx/dimy

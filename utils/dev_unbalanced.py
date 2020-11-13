@@ -1576,6 +1576,45 @@ def barycenter_sinkhorn(A, M, reg, weights=None,
         return q
 
 
+# def prod_separable_logspace(Cx,Cy,gamma,v):
+#     """
+#     implementation of Algorithm 3 of 
+#     Wasserstein Dictionary Learning: Optimal Transport-based unsupervised non-linear dictionary learning
+#     (Morgan Schmitz, Matthieu Heitz, Nicolas Bonneel, Fred Maurice Ngolè Mboula, David Coeurjolly, Marco Cuturi, Gabriel Peyré, Jean-Luc Starck)
+#     ----------
+#     Input
+#     Cx : np.ndarray (dimx, dimx)
+#         x part of separable cost matrix.
+#     Cy : np.ndarray (dimy, dimy)
+#         y part of separable cost matrix.
+#     gamma : float
+#         regularization parameter.
+#     v : np.ndarray(dimx,dimy,n_hist)
+#         input matrix in logspace
+#     ----------
+#     Output
+#     r : np.ndarray(dimx,dimy)
+#         result of product (exp(-Cx/gamma)X exp(-Cy/gamma))*v in logspace
+#     """
+#     dimx,dimy,n_hist = v.shape
+#     R = np.zeros(v.shape)
+#     for i in range(n_hist):
+#         x = np.zeros((dimy,dimx,dimy))
+#         for l in range(dimy):
+#             x[l,:,:] = -Cy[:,l]/gamma + v[:,l,i,np.newaxis]
+#         #x = -Cy[:,:]/gamma + v[:,:,i,np.newaxis]
+#         #x.swapaxes(0,1)
+#         mx = np.max(x,axis=0)
+#         mx[mx==-np.inf]=0
+#         A = np.log(np.exp(x-mx).sum(axis=0))+mx
+#         y = np.zeros((dimx,dimx,dimy))
+#         for k in range(dimx):
+#             y[k,:,:] = -Cx[:,k,np.newaxis]/gamma + A[k,:]
+#         my = np.max(y,axis=0)
+#         my[my==-np.inf]=0
+#         R[:,:,i] = np.log(np.exp(y-my).sum(axis=0))+my
+#     return R
+
 def prod_separable_logspace(Cx,Cy,gamma,v):
     """
     implementation of Algorithm 3 of 
@@ -1596,21 +1635,17 @@ def prod_separable_logspace(Cx,Cy,gamma,v):
     r : np.ndarray(dimx,dimy)
         result of product (exp(-Cx/gamma)X exp(-Cy/gamma))*v in logspace
     """
-    dimx,dimy,n_hist = v.shape
+    n_hist = v.shape[2]
     R = np.zeros(v.shape)
     for i in range(n_hist):
-        x = np.zeros((dimy,dimx,dimy))
-        for l in range(dimy):
-            x[l,:,:] = -Cy[:,l]/gamma + v[:,l,i,np.newaxis]
-        mx = np.max(x,axis=0)
+        x = -Cy[:,:]/gamma + v[:,np.newaxis,:,i]
+        mx = np.max(x,axis=2)
         mx[mx==-np.inf]=0
-        A = np.log(np.exp(x-mx).sum(axis=0))+mx
-        y = np.zeros((dimx,dimx,dimy))
-        for k in range(dimx):
-            y[k,:,:] = -Cx[:,k,np.newaxis]/gamma + A[k,:]
-        my = np.max(y,axis=0)
+        A = np.log(np.exp(x-mx[:,:,None]).sum(axis=2))+mx
+        y = -Cx[:,np.newaxis,:]/gamma + A.T
+        my = np.max(y,axis=2)
         my[my==-np.inf]=0
-        R[:,:,i] = np.log(np.exp(y-my).sum(axis=0))+my
+        R[:,:,i] = np.log(np.exp(y-my[:,:,None]).sum(axis=2))+my
     return R
 
 @njit
@@ -1625,14 +1660,12 @@ def nb_max_axis_0(arr):
 @njit
 def nb_prod_separable_logspace(Cx,Cy,gamma,v):
     
-    dimx,dimy,n_hist = v.shape
-    R = np.zeros(v.shape)
-    v_ = np.zeros((dimx,dimy,n_hist,1))
-    v_[:,:,:,0] = v
+    dimx,dimy,n_hist,_ = v.shape
+    R = np.zeros((dimx,dimy,n_hist))
     for i in range(n_hist):
         x = np.zeros((dimy,dimx,dimy))
         for l in range(dimy):
-            x[l,:,:] = -Cy[:,l]/gamma + v_[:,l,i,:]
+            x[l,:,:] = -Cy[:,l]/gamma + v[:,l,i,:]
         mx = nb_max_axis_0(x)
         for xi in range(dimx):
             for yi in range(dimy):
@@ -1640,10 +1673,8 @@ def nb_prod_separable_logspace(Cx,Cy,gamma,v):
                     mx[xi,yi]=0
         A = np.log(np.exp(x-mx).sum(axis=0))+mx
         y = np.zeros((dimx,dimx,dimy))
-        Cx_ = np.zeros((dimx,dimx,1))
-        Cx_[:,:,0] = Cx
         for k in range(dimx):
-            y[k,:,:] = -Cx_[:,k,:]/gamma + A[k,:]
+            y[k,:,:] = -Cx[:,k,:]/gamma + A[k,:]
         my = nb_max_axis_0(y)
         for xi in range(dimx):
             for yi in range(dimy):
@@ -1709,57 +1740,118 @@ def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
 
     fi = reg_m / (reg_m + reg)
 
-    v = np.zeros((dimx,dimy,1))
-    u = np.zeros((dimx,dimy))
-    q = np.zeros((dimx,dimy))
-    err = 1.
+    
+    if logspace :
+        v = np.zeros((dimx,dimy,1))*np.log(1/dimx/dimy)
+        u = np.zeros((dimx,dimy))*np.log(1/dimx/dimy)
+        q = np.zeros((dimx,dimy))*np.log(1/dimx/dimy)
+        err = 1.
+        for i in range(numItermax):
+            uprev = u.copy()
+            vprev = v.copy()
+            qprev = q.copy()
 
-    for i in range(numItermax):
-        uprev = u.copy()
-        vprev = v.copy()
-        qprev = q.copy()
+            lKv = prod_separable_logspace(Cx,Cy,reg,v)
+            #lKv = nb_prod_separable_logspace(Cx[:,:,np.newaxis],Cy,reg,v[:,:,:,np.newaxis])
+            #u = (A / Kv) ** fi
+            u = fi*(np.log(A)-lKv)
+            #Ktu = K.T.dot(u)
+            lKtu = prod_separable_logspace(Cx.T,Cy.T,reg,u)
+            #lKtu = nb_prod_separable_logspace(Cx.T[:,:,np.newaxis],Cy.T,reg,u[:,:,:,np.newaxis])
+            #q = ((Ktu ** (1 - fi)).dot(weights))
+            mlktu = (1-fi)*np.max(lKtu,axis=2)
+            q = (1 / (1 - fi))*((np.log(np.exp((1-fi)*lKtu-mlktu[:,:,np.newaxis]).mean(axis=2))) + mlktu)
+            #q = q ** (1 / (1 - fi))
+            Q = q[:,:,np.newaxis]
+            #v = (Q / Ktu) ** fi
+            v = fi*(Q-lKtu)
 
-        lKv = nb_prod_separable_logspace(Cx,Cy,reg,v)
-        #u = (A / Kv) ** fi
-        u = fi*(np.log(A)-lKv)
-        #Ktu = K.T.dot(u)
-        lKtu = nb_prod_separable_logspace(Cx.T,Cy.T,reg,u)
-        #q = ((Ktu ** (1 - fi)).dot(weights))
-        mlktu = (1-fi)*np.max(lKtu,axis=2)
-        q = (1 / (1 - fi))*((np.log(np.exp((1-fi)*lKtu-mlktu[:,:,np.newaxis]).mean(axis=2))) + mlktu)
-        #q = q ** (1 / (1 - fi))
-        Q = q[:,:,np.newaxis]
-        #v = (Q / Ktu) ** fi
-        v = fi*(Q-lKtu)
+            if (np.any(lKtu == -np.inf)
+                    or np.any(np.isnan(u)) or np.any(np.isnan(v))):
+                # we have reached the machine precision
+                # come back to previous solution and quit loop
+                print('Numerical errors at iteration %s' % i)
+                u = uprev
+                v = vprev
+                #q = qprev
+                break
+                # compute change in barycenter
+            if (i % 10 == 0) or i == 0:
+                err = abs(np.exp(qprev)*(1-np.exp(q-qprev))).max()
+                err /= max(abs(np.exp(q)).max(), abs(np.exp(qprev)).max(), 1.)
+                if log:
+                    log['err'].append(err)
+                # if barycenter did not change + at least 10 iterations - stop
+                if err < stopThr and i > 10:
+                    break
 
-        if (np.any(lKtu == -np.inf)
-                or np.any(np.isnan(u)) or np.any(np.isnan(v))):
-            # we have reached the machine precision
-            # come back to previous solution and quit loop
-            warnings.warn('Numerical errors at iteration %s' % i)
-            u = uprev
-            v = vprev
-            #q = qprev
-            break
-            # compute change in barycenter
-        err = abs(np.exp(qprev)*(1-np.exp(q-qprev))).max()
-        err /= max(abs(np.exp(q)).max(), abs(np.exp(qprev)).max(), 1.)
+                if verbose:
+                    if i % 100 == 0:
+                        print(
+                            '{:5s}|{:12s}'.format('It.', 'Err') + '\n' + '-' * 19)
+                    print('{:5d}|{:8e}|'.format(i, err))
+
         if log:
-            log['err'].append(err)
-        # if barycenter did not change + at least 10 iterations - stop
-        if err < stopThr and i > 10:
-            break
+            log['niter'] = i
+            log['logu'] = ((u + 1e-300))
+            log['logv'] = ((v + 1e-300))
+            return q, log
+        else:
+            return q
+    else :
+        v = np.ones((dimx,dimy,1))/dimx/dimy
+        u = np.ones((dimx,dimy))/dimx/dimy
+        q = np.ones((dimx,dimy))/dimx/dimy
+        err = 1.
+        Kx = np.exp(-Cx/reg)
+        Ky = np.exp(-Cy/reg)
+        for i in range(numItermax):
+            uprev = u.copy()
+            vprev = v.copy()
+            qprev = q.copy()
 
-        if verbose:
-            if i % 10 == 0:
-                print(
-                    '{:5s}|{:12s}'.format('It.', 'Err') + '\n' + '-' * 19)
-            print('{:5d}|{:8e}|'.format(i, err))
+            Kv = np.tensordot(np.tensordot(Kx,v,axes=([1],[0])),Ky,axes=([1],[0])).swapaxes(1,2)           
+            u = (A / Kv) ** fi
+            Ktu = np.tensordot(np.tensordot(Kx.T,u,axes=([1],[0])),Ky.T,axes=([1],[0])).swapaxes(1,2) 
+            
+            q = ((Ktu ** (1 - fi)).dot(weights))
+            
+            
+            q = q ** (1 / (1 - fi))
+            Q = q[:,:,np.newaxis]
+            v = (Q / Ktu) ** fi
+            
 
-    if log:
-        log['niter'] = i
-        log['logu'] = (u + 1e-300)
-        log['logv'] = (v + 1e-300)
-        return q, log
-    else:
-        return q
+            if (np.any(Ktu == 0)
+                    or np.any(np.isnan(u)) or np.any(np.isnan(v))
+                    or np.any(np.isinf(u)) or np.any(np.isinf(v))):
+                # we have reached the machine precision
+                # come back to previous solution and quit loop
+                print('Numerical errors at iteration %s' % i)
+                u = uprev
+                v = vprev
+                q = qprev
+                break
+                # compute change in barycenter
+            err = abs(q-qprev).max()
+            err /= max(abs(q).max(), abs(qprev).max(), 1.)
+            if log:
+                log['err'].append(err)
+            # if barycenter did not change + at least 10 iterations - stop
+            if err < stopThr and i > 10:
+                break
+
+            if verbose:
+                if i % 10 == 0:
+                    print(
+                        '{:5s}|{:12s}'.format('It.', 'Err') + '\n' + '-' * 19)
+                print('{:5d}|{:8e}|'.format(i, err))
+        if log:
+            log['niter'] = i
+            log['logu'] = (np.log(u + 1e-300))
+            log['logv'] = (np.log(v + 1e-300))
+            return q, log
+        else:
+            return q
+
+

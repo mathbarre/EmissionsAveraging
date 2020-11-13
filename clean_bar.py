@@ -121,25 +121,25 @@ def windMtx(direction,speed,m,n,time=1):
 
 #%%
 #using wasserstein ficher rao metric
-@njit
-def Mfr(m,n,delta,max_val):
-    M = -np.ones((m*n,m*n))
-    x=np.column_stack(np.nonzero(np.ones((m,n))))*np.array([dimx_true/dimx,dimy_true/dimy])
-    for i in range(m*n):
-        for j in range(m*n):
-            #WARNING row index corresponds to move on the North/South axis
-            if np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta <= np.pi/2:
-                M[i,j] = -np.log(np.cos(np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta)**2)
-    mx = M.max()+1                
-    for i in range(m*n):
-        for j in range(m*n):
-            if M[i,j] == -1:
-                M[i,j] = mx    
-    return M
+# @njit
+# def Mfr(m,n,delta,max_val):
+#     M = -np.ones((m*n,m*n))
+#     x=np.column_stack(np.nonzero(np.ones((m,n))))*np.array([dimx_true/dimx,dimy_true/dimy])
+#     for i in range(m*n):
+#         for j in range(m*n):
+#             #WARNING row index corresponds to move on the North/South axis
+#             if np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta <= np.pi/2:
+#                 M[i,j] = -np.log(np.cos(np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta)**2)
+#     mx = M.max()+1                
+#     for i in range(m*n):
+#         for j in range(m*n):
+#             if M[i,j] == -1:
+#                 M[i,j] = mx    
+#     return M
 
-delta=15
-M_wfr = Mfr(dimx,dimy,delta,1)
-M_wfr = M_wfr/M_wfr.max()
+# delta=15
+# M_wfr = Mfr(dimx,dimy,delta,1)
+# M_wfr = M_wfr/M_wfr.max()
 
 
 #%%
@@ -157,53 +157,53 @@ Cy = ot.dist(dimy_true/dimy*np.array(np.nonzero(np.ones((dimy)))).T)
 costMax = (Cx.max()+Cy.max())
 Cx = Cx/costMax
 Cy = Cy/costMax
-
-M_ = np.zeros((A.shape[1],A.shape[1],1))
-M_[:,:,0]= M
-Ms = np.zeros((A.shape[1],A.shape[1],A.shape[0]))
-
+#%%
+# M_ = np.zeros((A.shape[1],A.shape[1],1))
+# M_[:,:,0]= M
 
 
-wind_factor = 8
+# Ms = np.zeros((A.shape[1],A.shape[1],A.shape[0]))
 
-#Creates a cost matrix for each image using the wind data
-for i in range(A.shape[0]):
-    wind_speed = np.linalg.norm(wind[:,i])
+# wind_factor = 8
+
+# #Creates a cost matrix for each image using the wind data
+# for i in range(A.shape[0]):
+#     wind_speed = np.linalg.norm(wind[:,i])
     
-    if wind_speed > 0 :
+#     if wind_speed > 0 :
 
-        wind_dir = wind[:,i]/wind_speed
-        #Mw = windMtx(-wind_dir,wind_speed,dimx,dimy,(i+1)**0.5)
-        Mw = windMtxLoop(wind_dir,wind_speed,dimx,dimy,time=wind_factor)
-        #Mw = windMtx_wfr(-wind_dir,wind_speed,dimx,dimy,time=wind_factor)
+#         wind_dir = wind[:,i]/wind_speed
+#         #Mw = windMtx(-wind_dir,wind_speed,dimx,dimy,(i+1)**0.5)
+#         Mw = windMtxLoop(wind_dir,wind_speed,dimx,dimy,time=wind_factor)
+#         #Mw = windMtx_wfr(-wind_dir,wind_speed,dimx,dimy,time=wind_factor)
 
-    else : 
-        Mw = ot.dist(x)
+#     else : 
+#         Mw = ot.dist(x)
     
-    Ms[:,:,i] = Mw/Mw.max()
+#     Ms[:,:,i] = Mw/Mw.max()
     
-    
-    
-
 
 
 #%%
 
 reg=0.003
-reg_m=0.5
+reg_m=0.1
 Tot = A.reshape((A.shape[0],dimx,dimy))
 Tot = Tot.swapaxes(0,1).swapaxes(1,2)
 #G1=barycenter_unbalanced_stabilized_dev(np.transpose(A[:,:]), Ms, reg, reg_m,weights=None,numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
-G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
-G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
-G2D =  barycenter_unbalanced_sinkhorn2D(Tot, Cx,Cy, reg, reg_m, weights=None, numItermax=1000, stopThr=1e-4,verbose=True, log=True,logspace=True)
+#G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
+G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, 3*reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
+G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=False)
 
-imgwind=G1[0].reshape(img1.shape)
-img_l2=G2[0][:].reshape(img1.shape)
-img_wfr=G3[0][:].reshape(img1.shape)
+
+#imgwind=G1[0].reshape(img1.shape)
+img_l2=G2[0][:].reshape(img1.shape)   
+#img_wfr=G3[0][:].reshape(img1.shape)
 img_2D = np.exp(G2D[0])
 #imgwind=G1[0].reshape(img1.shape)
+pl.imshow(img_2D, cmap=cm)
 
+pl.imshow(Tot[:,:,:].mean(axis=2), cmap=cm)
 # Compute simple mean
 imgm=A[:,:].mean(axis=0).reshape(img1.shape)
 # Plot result
@@ -218,16 +218,16 @@ pl.imshow(img_l2, cmap=cm)
 pl.colorbar()
 
 pl.axis('off')
-ax1 = plt.subplot(143)
-pl.imshow(imgwind, cmap=cm)
-pl.colorbar()
+# ax1 = plt.subplot(143)
+# pl.imshow(imgwind, cmap=cm)
+# pl.colorbar()
 
-pl.axis('off')
-ax1 = plt.subplot(144)
-pl.imshow(img_wfr, cmap=cm)
-pl.colorbar()
+# pl.axis('off')
+# ax1 = plt.subplot(144)
+# pl.imshow(img_wfr, cmap=cm)
+# pl.colorbar()
 
-pl.axis('off')
+# pl.axis('off')
 
 pl.show()
 

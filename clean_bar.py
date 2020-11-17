@@ -89,9 +89,15 @@ for root, dirs, files in os.walk(basepath):
                 else:
                     wind= np.hstack((wind,np.array([[w1],[w2]])))
 #A=A/np.nanmax(A.flatten())  
-med = np.nanmedian(A.flatten()) 
-mn = np.nanmin(A.flatten())
-A=(A-mn)/med
+
+# med = np.nanmedian(A.flatten()) 
+# mn = np.nanmin(A.flatten())
+# A=(A-mn)/med
+A = A[:,:]
+A=A/np.nanmedian(A.flatten()) 
+A=np.clip(A,0,10) # CHECK: large outliers
+np.nan_to_num(A, copy=False, nan=0.0) # Fill nans with zeros
+
 #A=np.clip(A,0,10) # CHECK: large outliers
 np.nan_to_num(A, copy=False, nan=0.0) # Fill nans with zeros
 weight= weight/weight.sum()
@@ -188,14 +194,14 @@ Cy = Cy/costMax
 #%%
 
 reg=0.003
-reg_m=0.1
+reg_m=0.5
 Tot = A.reshape((A.shape[0],dimx,dimy))
 Tot = Tot.swapaxes(0,1).swapaxes(1,2)
 #G1=barycenter_unbalanced_stabilized_dev(np.transpose(A[:,:]), Ms, reg, reg_m,weights=None,numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
 #G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
-G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
-G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=False)
-
+#G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
+G2=barycenter_unbalanced_stabilized(np.transpose(A[:,:]), M, reg,reg_m,weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
+G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=False,reg_K=1e-16)
 
 #imgwind=G1[0].reshape(img1.shape)
 img_l2=G2[0][:].reshape(img1.shape)   

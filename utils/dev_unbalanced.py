@@ -761,6 +761,7 @@ def barycenter_unbalanced_stabilized(A, M, reg, reg_m, weights=None, tau=1e3,
         absorbing = False
         if (u > tau).any() or (v > tau).any():
             absorbing = True
+            print("absorbing")
             alpha = alpha + reg * np.log(np.max(u, 1))
             beta = beta + reg * np.log(np.max(v, 1))
             K = np.exp((alpha[:, None] + beta[None, :] -
@@ -1686,7 +1687,7 @@ def nb_prod_separable_logspace(Cx,Cy,gamma,v):
 
 def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
                                    numItermax=1000, stopThr=1e-6,
-                                   verbose=False, log=False,logspace=True):
+                                   verbose=False, log=False,logspace=True,reg_K = 1e-16):
     """
     ----------
     A : np.ndarray (dim,dim, n_hists)
@@ -1754,7 +1755,7 @@ def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
             lKv = prod_separable_logspace(Cx,Cy,reg,v)
             #lKv = nb_prod_separable_logspace(Cx[:,:,np.newaxis],Cy,reg,v[:,:,:,np.newaxis])
             #u = (A / Kv) ** fi
-            u = fi*(np.log(A)-lKv)
+            u = fi*(np.log(A)-np.maximum(lKv,np.log(reg_K)))
             #Ktu = K.T.dot(u)
             lKtu = prod_separable_logspace(Cx.T,Cy.T,reg,u)
             #lKtu = nb_prod_separable_logspace(Cx.T[:,:,np.newaxis],Cy.T,reg,u[:,:,:,np.newaxis])
@@ -1764,7 +1765,7 @@ def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
             #q = q ** (1 / (1 - fi))
             Q = q[:,:,np.newaxis]
             #v = (Q / Ktu) ** fi
-            v = fi*(Q-lKtu)
+            v = fi*(Q-np.maximum(lKtu,np.log(reg_K)))
 
             if (np.any(lKtu == -np.inf)
                     or np.any(np.isnan(u)) or np.any(np.isnan(v))):
@@ -1811,7 +1812,7 @@ def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
             qprev = q.copy()
 
             Kv = np.tensordot(np.tensordot(Kx,v,axes=([1],[0])),Ky,axes=([1],[0])).swapaxes(1,2)           
-            u = (A / Kv) ** fi
+            u = (A / (Kv+reg_K)) ** fi
             Ktu = np.tensordot(np.tensordot(Kx.T,u,axes=([1],[0])),Ky.T,axes=([1],[0])).swapaxes(1,2) 
             
             q = ((Ktu ** (1 - fi)).dot(weights))
@@ -1819,7 +1820,7 @@ def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
             
             q = q ** (1 / (1 - fi))
             Q = q[:,:,np.newaxis]
-            v = (Q / Ktu) ** fi
+            v = (Q / (Ktu+reg_K)) ** fi
             
 
             if (np.any(Ktu == 0)
@@ -1833,19 +1834,20 @@ def barycenter_unbalanced_sinkhorn2D(A, Cx,Cy, reg, reg_m, weights=None,
                 q = qprev
                 break
                 # compute change in barycenter
-            err = abs(q-qprev).max()
-            err /= max(abs(q).max(), abs(qprev).max(), 1.)
-            if log:
-                log['err'].append(err)
-            # if barycenter did not change + at least 10 iterations - stop
-            if err < stopThr and i > 10:
-                break
+            if (i % 10 == 0) or i == 0:
+                err = abs(q-qprev).max()
+                err /= max(abs(q).max(), abs(qprev).max(), 1.)
+                if log:
+                    log['err'].append(err)
+                # if barycenter did not change + at least 10 iterations - stop
+                if err < stopThr and i > 10:
+                    break
 
-            if verbose:
-                if i % 10 == 0:
-                    print(
-                        '{:5s}|{:12s}'.format('It.', 'Err') + '\n' + '-' * 19)
-                print('{:5d}|{:8e}|'.format(i, err))
+                if verbose:
+                    if i % 100 == 0:
+                        print(
+                            '{:5s}|{:12s}'.format('It.', 'Err') + '\n' + '-' * 19)
+                    print('{:5d}|{:8e}|'.format(i, err))
         if log:
             log['niter'] = i
             log['logu'] = (np.log(u + 1e-300))

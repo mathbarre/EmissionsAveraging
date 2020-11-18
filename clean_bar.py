@@ -7,7 +7,7 @@ import os
 import rasterio
 from rasterio.warp import reproject
 from rasterio.enums import Resampling
-from utils.dev_unbalanced import barycenter_unbalanced_sinkhorn_dev,barycenter_unbalanced_sinkhorn,barycenter_unbalanced_stabilized,barycenter_unbalanced_stabilized_dev,barycenter_sinkhorn_dev,barycenter_sinkhorn, barycenter_unbalanced_sinkhorn2D
+from utils.dev_unbalanced import barycenter_unbalanced_sinkhorn_dev,barycenter_unbalanced_sinkhorn,barycenter_unbalanced_stabilized,barycenter_unbalanced_stabilized_dev,barycenter_sinkhorn_dev,barycenter_sinkhorn, barycenter_unbalanced_sinkhorn2D,barycenter_unbalanced_sinkhorn2D_wind
 from numba import njit
 
 
@@ -93,7 +93,7 @@ for root, dirs, files in os.walk(basepath):
 # med = np.nanmedian(A.flatten()) 
 # mn = np.nanmin(A.flatten())
 # A=(A-mn)/med
-A = A[:,:]
+A = A[:200,:]
 A=A/np.nanmedian(A.flatten()) 
 A=np.clip(A,0,10) # CHECK: large outliers
 np.nan_to_num(A, copy=False, nan=0.0) # Fill nans with zeros
@@ -164,69 +164,79 @@ Cy = ot.dist(dimy_true/dimy*np.array(np.nonzero(np.ones((dimy)))).T)
 costMax = (Cx.max()+Cy.max())
 Cx = Cx/costMax
 Cy = Cy/costMax
+#%%Construct wind dependent cost matrices
+
+
+xs = np.arange(Cx.shape[0])
+ys = np.arange(Cy.shape[0])
+Cx_ = (xs[:,None]-xs)**2
+Cy_ = (ys[:,None]-ys)**2
+
+Cxs = np.zeros((Cx.shape[0],Cx.shape[1],A.shape[0]))
+Cys = np.zeros((Cy.shape[0],Cy.shape[1],A.shape[0]))
+
+wind_factor = 8
+
+
+for i in range(A.shape[0]):
+    """
+     In the barycenter formulation, the barycenter is the second argument of W(_,_)
+     Thus the cost c(x1,x2) corresponds to move from the barycenter at x2 to x1
+    """
+    
+    Cxw = Cx_ -wind_factor*wind[0,i]*(xs[:,None]-xs)
+    Cyw = Cy_ -wind_factor*wind[1,i]*(ys[:,None]-ys)
+    costMaxw = (Cxw.max()+Cyw.max())
+    Cxs[:,:,i] = Cxw/costMaxw
+    Cys[:,:,i] = Cyw/costMaxw
+
+    
+
+
+
 #%%
-# M_ = np.zeros((A.shape[1],A.shape[1],1))
-# M_[:,:,0]= M
 
-
-# Ms = np.zeros((A.shape[1],A.shape[1],A.shape[0]))
-
-# wind_factor = 8
-
-# #Creates a cost matrix for each image using the wind data
-# for i in range(A.shape[0]):
-#     wind_speed = np.linalg.norm(wind[:,i])
-    
-#     if wind_speed > 0 :
-
-#         wind_dir = wind[:,i]/wind_speed
-#         #Mw = windMtx(-wind_dir,wind_speed,dimx,dimy,(i+1)**0.5)
-#         Mw = windMtxLoop(wind_dir,wind_speed,dimx,dimy,time=wind_factor)
-#         #Mw = windMtx_wfr(-wind_dir,wind_speed,dimx,dimy,time=wind_factor)
-
-#     else : 
-#         Mw = ot.dist(x)
-    
-#     Ms[:,:,i] = Mw/Mw.max()
-    
-
-
-#%%
-
-reg=0.003
+reg=0.001
 reg_m=0.5
 Tot = A.reshape((A.shape[0],dimx,dimy))
 Tot = Tot.swapaxes(0,1).swapaxes(1,2)
 #G1=barycenter_unbalanced_stabilized_dev(np.transpose(A[:,:]), Ms, reg, reg_m,weights=None,numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
 #G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
 #G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
-G2=barycenter_unbalanced_stabilized(np.transpose(A[:,:]), M, reg,reg_m,weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
-G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=False,reg_K=1e-16)
-
+G2=barycenter_unbalanced_stabilized(np.transpose(A[:,:]), M, 2*reg,reg_m,weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e10)
+G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=True,reg_K=1e-16)
+G2Dw = barycenter_unbalanced_sinkhorn2D_wind(Tot[:,:,:], Cxs,Cys, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=True,reg_K=1e-16)
 #imgwind=G1[0].reshape(img1.shape)
 img_l2=G2[0][:].reshape(img1.shape)   
 #img_wfr=G3[0][:].reshape(img1.shape)
 img_2D = G2D[0]
+img_2Dw = G2Dw[0]
 #imgwind=G1[0].reshape(img1.shape)
 
 # Compute simple mean
 imgm=A[:,:].mean(axis=0).reshape(img1.shape)
 # Plot result
 cm = 'OrRd'
-ax1 = plt.subplot(131)
+ax1 = plt.subplot(141)
 pl.imshow(imgm, cmap=cm)
-pl.colorbar()
+#pl.colorbar()
 
 pl.axis('off')
-ax1 = plt.subplot(132)
+ax1 = plt.subplot(142)
 pl.imshow(img_l2, cmap=cm)
-pl.colorbar()
+#pl.colorbar()
 
 pl.axis('off')
 
-ax1 = plt.subplot(133)
+ax1 = plt.subplot(143)
 pl.imshow(img_2D, cmap=cm)
-pl.colorbar()
+#pl.colorbar()
+
+pl.axis('off')
+
+ax1 = plt.subplot(144)
+pl.imshow(img_2Dw, cmap=cm)
+#pl.colorbar()
 
 pl.axis('off')
 # ax1 = plt.subplot(143)

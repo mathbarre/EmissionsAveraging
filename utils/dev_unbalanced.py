@@ -11,6 +11,11 @@ import warnings
 import numpy as np
 from scipy.special import logsumexp
 from numba import njit
+
+import line_profiler
+import atexit
+profile = line_profiler.LineProfiler()
+atexit.register(profile.print_stats)
 # from .utils import unif, dist
 
 
@@ -1615,8 +1620,26 @@ def barycenter_sinkhorn(A, M, reg, weights=None,
 #         my[my==-np.inf]=0
 #         R[:,:,i] = np.log(np.exp(y-my).sum(axis=0))+my
 #     return R
-
-
+@njit
+def logsumexp_stream(X):
+    (dimx,dimy,_) = X.shape
+    res = np.empty((dimx,dimy),dtype=X.dtype)
+    for i in range(dimx):
+        for j in range(dimy):
+            alpha = -np.Inf
+            r = 0.0
+            for x in X[i,j,:]:
+                if x != -np.Inf:
+                    if x <= alpha:
+                        r += np.exp(x - alpha)
+                    else:
+                        r *= np.exp(alpha - x)
+                        r += 1.0
+                        alpha = x
+            res[i,j] = np.log(r) + alpha
+    return res
+ 
+#@profile
 def prod_separable_logspace(Cx,Cy,gamma,v):
     """
     implementation of Algorithm 3 of 
@@ -1644,16 +1667,18 @@ def prod_separable_logspace(Cx,Cy,gamma,v):
             x = -Cy[:,:,i]/gamma + v[:,np.newaxis,:,i]
         else:
             x = -Cy[:,:]/gamma + v[:,np.newaxis,:,i]
-        mx = np.max(x,axis=2)
-        mx[mx==-np.inf]=0
-        A = np.log(np.exp(x-mx[:,:,None]).sum(axis=2))+mx
+        #mx = np.max(x,axis=2)
+        #mx[mx==-np.inf]=0
+        #A = np.log(np.exp(x-mx[:,:,None]).sum(axis=2))+mx
+        A = logsumexp_stream(x)
         if Cx.ndim > 2 :
             y = -Cx[:,np.newaxis,:,i]/gamma + A.T    
         else:
             y = -Cx[:,np.newaxis,:]/gamma + A.T
-        my = np.max(y,axis=2)
-        my[my==-np.inf]=0
-        R[:,:,i] = np.log(np.exp(y-my[:,:,None]).sum(axis=2))+my
+        #my = np.max(y,axis=2)
+        #my[my==-np.inf]=0
+        #R[:,:,i] = np.log(np.exp(y-my[:,:,None]).sum(axis=2))+my
+        R[:,:,i] = logsumexp_stream(y)
     return R
 
 @njit

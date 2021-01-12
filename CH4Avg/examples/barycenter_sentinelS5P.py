@@ -1,6 +1,5 @@
-# %%
 from CH4Avg.utils.dev_unbalanced import (barycenter_unbalanced_sinkhorn2D,
-barycenter_unbalanced_sinkhorn2D_wind)
+                                         barycenter_unbalanced_sinkhorn2D_wind)
 from CH4Avg.utils.cost_matrices import CostMtx
 from CH4Avg.utils.preprocessing import load_data, preprocess
 import ot
@@ -20,13 +19,14 @@ M = CostMtx(dimx, dimy, y_over_x_ratio=y_over_x_ratio)
 (Cxs, Cys) = (np.zeros((Cx.shape[0], Cx.shape[0], Tot.shape[2])), np.zeros(
     (Cy.shape[0], Cy.shape[0], Tot.shape[2])))
 
-wind_factor = 0.1
+# negative because we want to "reverse" the effect of the wind
+wind_factor = -0.15
 for i in range(Tot.shape[2]):
     (Cxs[:, :, i], Cys[:, :, i]) = CostMtx(
-                                dimx, dimy, y_over_x_ratio=y_over_x_ratio,
-                                separable=True, wind=wind[:, i],
-                                wind_factor=wind_factor)
-# %%
+        dimx, dimy, y_over_x_ratio=y_over_x_ratio,
+        separable=True, wind=wind[:, i],
+        wind_factor=wind_factor)
+
 reg = 0.0025
 reg_m = 0.5
 
@@ -44,10 +44,15 @@ G2Dw = barycenter_unbalanced_sinkhorn2D_wind(
 cm = 'OrRd'
 ax1 = plt.subplot(141)
 plt.imshow(Tot.mean(axis=2), cmap=cm)
+plt.title("arithmetic mean")
 ax1 = plt.subplot(142)
 plt.imshow(Gtest[0].reshape((dimx, dimy)), cmap=cm)
+plt.title("POT 1D Wasserstein")
 ax1 = plt.subplot(143)
 plt.imshow(G2D[0], cmap=cm)
+plt.title("2D Wasserstein")
 ax1 = plt.subplot(144)
 plt.imshow(G2Dw[0], cmap=cm)
+plt.title("2D Wasserstein + wind")
+plt.show()
 # %%

@@ -9,7 +9,6 @@ Regularized Unbalanced OT solvers
 from __future__ import division
 import warnings
 import numpy as np
-from scipy.special import logsumexp
 from numba import njit
 
 import line_profiler
@@ -17,7 +16,6 @@ import atexit
 profile = line_profiler.LineProfiler()
 atexit.register(profile.print_stats)
 # from .utils import unif, dist
-
 
 
 def barycenter_unbalanced_stabilized(A, M, reg, reg_m, weights=None, tau=1e3,

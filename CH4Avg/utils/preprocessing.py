@@ -7,8 +7,8 @@ def load_data(ptth, quality_thr=None, iswind=None):
     """
     Input
     -pthh : String, path to the folder containing the tiff images
-    -quality_thr: (optional), float, qualitity threshold for the pixels, assumed if it appears 
-    it is at channel 1
+    -quality_thr: (optional), float, qualitity threshold for the pixels,
+    assumed if it appears, it is at channel 1
     -iswind: (optional), (int,int), channels of the wind (W-E,S-N)
 
     Output
@@ -22,7 +22,8 @@ def load_data(ptth, quality_thr=None, iswind=None):
     wind = None
     for root, dirs, files in os.walk(ptth):
         for name in files:
-            if os.path.splitext(name)[1] == ".tif" or os.path.splitext(name)[1] == ".tiff":
+            if os.path.splitext(name)[1] == ".tif" or\
+             os.path.splitext(name)[1] == ".tiff":
                 ptth = os.path.join(root, name)
                 dataset = rasterio.open(ptth)
                 # x latitude, y longitude
@@ -35,7 +36,8 @@ def load_data(ptth, quality_thr=None, iswind=None):
                 if np.nansum(a) != 0:
                     w = None
                     if not(iswind is None):
-                        # get wind info, can add refinement on how the mean wind is computed
+                        # get wind info, can add refinement on how the mean
+                        # wind is computed
                         w2 = data[iswind[0], :, :].mean()
                         w1 = -data[iswind[1], :, :].mean()
                         w = np.array([[w1], [w2]])

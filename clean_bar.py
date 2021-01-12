@@ -13,7 +13,7 @@ from numba import njit
 
 #place = "pennsylvania"
 place = "permian"
-
+place = "middle_east"
 
 
 if place == "hassirmel" :
@@ -25,22 +25,22 @@ elif place == "dhakka" :
 elif place == "permian" :
     basepath = './data/permian_wind_reprojected/'    
 elif place == "middle_east" :
-    basepath = ''    
+    basepath = './data/middle_east_reprojected/'   
 else :
     basepath = ''
 
 #%% Form data matrix
 
-dimx = 78
-dimy= 87
+# dimx = 78
+# dimy= 87
 # dimx = 78
 # dimy = 87
-#dimx = 64
-#dimy = 119
+dimx = 64
+dimy = 119
 
 
 
-quality_thres = 10
+quality_thres = 1
 cm = 'OrRd'
 A = np.zeros((2,1))
 wind = np.zeros((2,1))
@@ -128,25 +128,26 @@ def windMtx(direction,speed,m,n,time=1):
 
 #%%
 #using wasserstein ficher rao metric
-# @njit
-# def Mfr(m,n,delta,max_val):
-#     M = -np.ones((m*n,m*n))
-#     x=np.column_stack(np.nonzero(np.ones((m,n))))*np.array([dimx_true/dimx,dimy_true/dimy])
-#     for i in range(m*n):
-#         for j in range(m*n):
-#             #WARNING row index corresponds to move on the North/South axis
-#             if np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta <= np.pi/2:
-#                 M[i,j] = -np.log(np.cos(np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta)**2)
-#     mx = M.max()+1                
-#     for i in range(m*n):
-#         for j in range(m*n):
-#             if M[i,j] == -1:
-#                 M[i,j] = mx    
-#     return M
+@njit
+def Mfr(m,n,delta,max_val):
+    M = -np.ones((m*n,m*n))
+    x=np.column_stack(np.nonzero(np.ones((m,n))))*np.array([dimx_true/dimx,dimy_true/dimy])
+    for i in range(m*n):
+        for j in range(m*n):
+            #WARNING row index corresponds to move on the North/South axis
+            if np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta <= np.pi/2:
+                M[i,j] = -np.log(np.cos(np.sqrt((x[i]-x[j])[0]**2+(x[i]-x[j])[1]**2)/2/delta)**2)
+    mx = M.max()+1                
+    for i in range(m*n):
+        for j in range(m*n):
+            if M[i,j] == -1:
+                M[i,j] = mx    
+    return M
 
-# delta=15
-# M_wfr = Mfr(dimx,dimy,delta,1)
-# M_wfr = M_wfr/M_wfr.max()
+delta=25
+#delta=17
+M_wfr = Mfr(dimx,dimy,delta,1)
+M_wfr = M_wfr/M_wfr.max()
 
 
 #%%
@@ -175,7 +176,7 @@ Cy_ = (ys[:,None]-ys)**2
 Cxs = np.zeros((Cx.shape[0],Cx.shape[1],A.shape[0]))
 Cys = np.zeros((Cy.shape[0],Cy.shape[1],A.shape[0]))
 
-wind_factor = 8
+wind_factor = 0.15
 
 
 for i in range(A.shape[0]):
@@ -184,8 +185,10 @@ for i in range(A.shape[0]):
      Thus the cost c(x1,x2) corresponds to move from the barycenter at x2 to x1
     """
     
-    Cxw = Cx_ -wind_factor*wind[0,i]*(xs[:,None]-xs)
-    Cyw = Cy_ -wind_factor*wind[1,i]*(ys[:,None]-ys)
+    # Cxw = Cx_ -wind_factor*wind[0,i]*(xs[:,None]-xs)
+    # Cyw = Cy_ -wind_factor*wind[1,i]*(ys[:,None]-ys)
+    Cxw = Cx_ -wind_factor*wind[0,i]*(xs[:,None]-xs)*abs((xs[:,None]-xs))
+    Cyw = Cy_ -wind_factor*wind[1,i]*(ys[:,None]-ys)*abs((ys[:,None]-ys))
     costMaxw = (Cxw.max()+Cyw.max())
     Cxs[:,:,i] = Cxw/costMaxw
     Cys[:,:,i] = Cyw/costMaxw
@@ -195,20 +198,22 @@ for i in range(A.shape[0]):
 
 
 #%%
-
-reg=0.001
+#A = A[100:300,:]
+#A = A[:250,:]
+reg=0.0008
 reg_m=0.5
 Tot = A.reshape((A.shape[0],dimx,dimy))
 Tot = Tot.swapaxes(0,1).swapaxes(1,2)
 #G1=barycenter_unbalanced_stabilized_dev(np.transpose(A[:,:]), Ms, reg, reg_m,weights=None,numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
-#G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
+#G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, 0.0015,0.3,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
+G3=ot.barycenter_unbalanced(np.transpose(A[:,:]), M_wfr, 0.0015,0.6,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e18)
 #G2=ot.barycenter_unbalanced(np.transpose(A[:,:]), M, reg,reg_m,method='sinkhorn_stabilized',weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
-G2=barycenter_unbalanced_stabilized(np.transpose(A[:,:]), M, 2*reg,reg_m,weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
-G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=True,reg_K=1e-16)
-G2Dw = barycenter_unbalanced_sinkhorn2D_wind(Tot[:,:,:], Cxs,Cys, reg, reg_m, weights=None, numItermax=200, stopThr=1e-4,verbose=True, log=True,logspace=True,reg_K=1e-16)
+#G2=barycenter_unbalanced_stabilized(np.transpose(A[:,:]), M, 2*reg,reg_m,weights=None, numItermax=500, stopThr=1e-04, verbose=True, log=True,tau=1e17)
+#G2D =  barycenter_unbalanced_sinkhorn2D(Tot[:,:,:], Cx,Cy, reg, reg_m, weights=None, numItermax=300, stopThr=1e-4,verbose=True, log=True,logspace=True,reg_K=1e-16)
+#G2Dw = barycenter_unbalanced_sinkhorn2D_wind(Tot[:,:,:], Cxs,Cys, reg, reg_m, weights=None, numItermax=300, stopThr=1e-4,verbose=True, log=True,logspace=True,reg_K=1e-16)
 #imgwind=G1[0].reshape(img1.shape)
-img_l2=G2[0][:].reshape(img1.shape)   
-#img_wfr=G3[0][:].reshape(img1.shape)
+#img_l2=G2[0][:].reshape(img1.shape)   
+img_wfr=G3[0][:].reshape(img1.shape)
 img_2D = G2D[0]
 img_2Dw = G2Dw[0]
 #imgwind=G1[0].reshape(img1.shape)
@@ -223,7 +228,7 @@ pl.imshow(imgm, cmap=cm)
 
 pl.axis('off')
 ax1 = plt.subplot(142)
-pl.imshow(img_l2, cmap=cm)
+pl.imshow(img_wfr, cmap=cm)
 #pl.colorbar()
 
 pl.axis('off')
@@ -255,4 +260,23 @@ pl.show()
 
 
 
+# %%
+image = img_wfr
+wfr = 1
+wd = 0
+mn = 0
+transform = dataset.transform * dataset.transform.scale(
+        (dataset.width / image.shape[1]),
+        (dataset.height / image.shape[0]))
+if wfr :
+    new_dataset = rasterio.open("../DS3/"+place+"_dim_"+str(dimx)+"_"+str(dimy)+"_quality_thres_"+str(quality_thres)+"_reg_"+str(round(reg,4))+"_reg_m_"+str(round(reg_m,4))+'_delta_'+str(delta)+'_wfrcost.tif','w',    driver='GTiff',height=image.shape[0],width=image.shape[1],count=1,dtype=image.dtype,crs=dataset.crs,transform=transform)
+elif wd :
+    new_dataset = rasterio.open("../DS3/"+place+"_dim_"+str(dimx)+"_"+str(dimy)+"_quality_thres_"+str(quality_thres)+"_reg_"+str(round(reg,4))+"_reg_m_"+str(round(reg_m,4))+'_windfactor_'+str(wind_factor)+'_wind.tif','w',    driver='GTiff',height=image.shape[0],width=image.shape[1],count=1,dtype=image.dtype,crs=dataset.crs,transform=transform)
+elif mn :
+    new_dataset = rasterio.open("../DS3/"+place+"_dim_"+str(dimx)+"_"+str(dimy)+"_quality_thres_"+str(quality_thres)+"_reg_"+str(round(reg,4))+"_reg_m_"+str(round(reg_m,4))+'_mean.tif','w',    driver='GTiff',height=image.shape[0],width=image.shape[1],count=1,dtype=image.dtype,crs=dataset.crs,transform=transform)
+else :
+    new_dataset = rasterio.open("../DS3/"+place+"_dim_"+str(dimx)+"_"+str(dimy)+"_quality_thres_"+str(quality_thres)+"_reg_"+str(round(reg,4))+"_reg_m_"+str(round(reg_m,4))+'.tif','w',    driver='GTiff',height=image.shape[0],width=image.shape[1],count=1,dtype=image.dtype,crs=dataset.crs,transform=transform)
+
+new_dataset.write(image,1)
+new_dataset.close()
 # %%

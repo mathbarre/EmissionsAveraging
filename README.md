@@ -5,6 +5,7 @@
 - numba (https://numba.readthedocs.io/en/stable/user/installing.html)
 
 To install the package do:
+
     cd EmissionsAverging/
 
     pip install -e .

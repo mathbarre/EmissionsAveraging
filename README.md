@@ -9,3 +9,9 @@ To install the package do:
     cd EmissionsAverging/
 
     pip install -e .
+
+Then you can run wasserstein barycenter on the Permian bassin by doing
+    
+    cd CH4Abg/examples/
+    
+    python barycenter_sentinelS5P.py

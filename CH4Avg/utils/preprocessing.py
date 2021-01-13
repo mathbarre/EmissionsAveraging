@@ -52,15 +52,17 @@ def load_data(ptth, quality_thr=None, iswind=None):
     return A, dimx, dimy, wind, y_over_x_ratio
 
 
-def preprocess(A, to_2D=None):
+def preprocess(A, normalize=(lambda x: x), clip=np.inf, to_2D=None):
     # Super basic for now
     """
     Input:
     -A, time series of dimension (n_images,dimx*dimy)
+    -normalize, (optional) normalization function
+    -clip, (optional) clip the value above
     -to_2D, (optional) (int,int), output is of shape (dimx,dimy,n_images)
     """
-    A = A / np.nanmedian(A.flatten())
-    A = np.clip(A, 0, 10)  # CHECK: large outliers
+    A = normalize(A)
+    A = np.clip(A, 0, clip)  # CHECK: large outliers
     np.nan_to_num(A, copy=False, nan=0.0)
     if not(to_2D is None):
         Tot = A.reshape((A.shape[0], to_2D[0], to_2D[1]))

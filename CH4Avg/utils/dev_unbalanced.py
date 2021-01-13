@@ -1461,7 +1461,7 @@ def barycenter_sinkhorn2D(A, Cx,Cy, reg, weights=None,
     Returns
     -------
     q : (dim,) ndarray
-        Unbalanced Wasserstein barycenter
+        Wasserstein barycenter
     log : dict
         log dictionary return only if log==True in parameters
     References

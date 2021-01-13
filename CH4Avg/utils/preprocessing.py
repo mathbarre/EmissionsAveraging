@@ -67,3 +67,24 @@ def preprocess(A, to_2D=None):
         Tot = Tot.swapaxes(0, 1).swapaxes(1, 2)
         return Tot
     return A
+
+
+def dummyfies(A):
+    if A.ndim == 3:
+        (dimx, dimy, n_images) = A.shape
+        res = np.zeros(dimx+1, dimy+1, n_images)
+        masses = A.sum(axis=0).sum(axis=0)
+        masses -= masses.max()
+        masses *= -1
+        res[:-1, :-1, :] = A
+        res[-1, :-1, :] = masses/(dimx+dimy)
+        res[:-1, -1, :] = masses/(dimx+dimy)
+    else:
+        (n_images, dim) = A.shape
+        res = np.zeros((n_images, dim+1))
+        masses = np.nansum(A, axis=1)
+        masses -= masses.max()
+        masses *= -1
+        res[:, :-1] = A
+        res[:, -1] = masses
+    return res

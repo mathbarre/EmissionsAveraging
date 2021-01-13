@@ -52,3 +52,64 @@ def Costwfr(dimx, dimy, delta, y_over_x_ratio):
             if M[i, j] == -1:
                 M[i, j] = mx
     return M/M.max()
+
+
+def make_dummy(M, c_create=None):
+    r"""
+    Parameters
+    ----------
+    M : np.ndarray (dim, dim)
+        ground metric matrix for OT.
+        or (np.ndarray(dim,dim),np.ndarray(dim,dim))
+        in the separable case.
+    c_create : (optional) float or (float,float).
+             Cost of transport of the dummy pixels.
+             If None, it is taken as the maximum value of
+             the cost matrix.
+
+    Returns
+    -------
+    M_dummy : np.ndarray (dim, dim) or
+             (np.ndarray(dim,dim),np.ndarray(dim,dim))
+             depending on input M.
+             Cost matrix with added dummy pixels for mass creation.
+    """
+    if type(M) is tuple:
+        (Cx, Cy) = M
+        if c_create is None:
+            Cxm = Cx.max()
+            Cym = Cy.max()
+        elif type(c_create) is tuple:
+            (Cxm, Cym) = c_create
+        else:
+            Cxm = c_create
+            Cym = c_create
+        Cx_dummy = np.zeros((Cx.shape[0]+1, Cx.shape[0]+1))
+        Cy_dummy = np.zeros((Cy.shape[0]+1, Cy.shape[0]+1))
+
+        Cx_dummy[:-1, :-1] = Cx
+        Cx_dummy[-1, :] = Cxm
+        Cx_dummy[:, -1] = Cxm
+        Cx_dummy[-1, -1] = 0
+
+        Cy_dummy[:-1, :-1] = Cy
+        Cy_dummy[-1, :] = Cym
+        Cy_dummy[:, -1] = Cym
+        Cy_dummy[-1, -1] = 0
+
+        costMax = (Cx_dummy.max()+Cy_dummy.max())
+        Cx_dummy /= costMax
+        Cy_dummy /= costMax
+        return (Cx_dummy, Cy_dummy)
+    else:
+        if c_create is None:
+            Mm = M.max()
+        else:
+            Mm = c_create
+        M_dummy = np.zeros((M.shape[0]+1, M.shape[1]+1))
+        M_dummy[:-1, :-1] = M
+        M_dummy[-1, :] = Mm
+        M_dummy[:, -1] = Mm
+        M_dummy[-1, -1] = 0
+        M_dummy /= M_dummy.max()
+        return M_dummy

@@ -13,9 +13,13 @@ basepath = '../data/permian_wind_reprojected/'
 A = preprocess(A[100:200, :])
 Tot = preprocess(A, to_2D=(dimx, dimy))
 
+# M is of shape shape dimx / dimy ^ 4
 M = CostMtx(dimx, dimy, y_over_x_ratio=y_over_x_ratio)
+# Same as M above, but separable (hence much faster)
+# Cx of shape dimx ^ 2
 (Cx, Cy) = CostMtx(dimx, dimy, y_over_x_ratio=y_over_x_ratio, separable=True)
 
+# For 2D with wind
 (Cxs, Cys) = (np.zeros((Cx.shape[0], Cx.shape[0], Tot.shape[2])), np.zeros(
     (Cy.shape[0], Cy.shape[0], Tot.shape[2])))
 

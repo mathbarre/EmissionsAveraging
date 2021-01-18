@@ -28,6 +28,8 @@ def prod_separable_logspace(Cx, Cy, gamma, v):
     r : np.ndarray(dimx,dimy)
         result of product (exp(-Cx/gamma)X exp(-Cy/gamma))*v in logspace
     """
+    # could avoid for loop but need to store a dimx,dimx,dimy,n_hist and
+    # a dimy,dimy,dimx,n_hist matrix
     n_hist = v.shape[2]
     R = cp.zeros(v.shape)
     for i in range(n_hist):
@@ -294,7 +296,7 @@ def barycenter_unbalanced_sinkhorn2D_wind_gpu(A, Cxs, Cys, reg, reg_m,
                 print('Numerical errors at iteration %s' % i)
                 u = uprev
                 v = vprev
-                #q = qprev
+                # q = qprev
                 break
                 # compute change in barycenter
             if (i % 10 == 0) or i == 0:

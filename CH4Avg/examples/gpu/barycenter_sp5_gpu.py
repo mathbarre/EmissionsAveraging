@@ -15,7 +15,7 @@ basepath = '../../data/permian_wind_reprojected/'
 
 (A, dimx, dimy, wind, y_over_x_ratio) = load_data(
     basepath, quality_thr=1, iswind=(3, 4))
-A = preprocess(A[:200, :], normalize=(lambda x: x/np.nanmean(x)))
+A = preprocess(A[:, :], normalize=(lambda x: x/np.nanmean(x)))
 Tot = preprocess(A, to_2D=(dimx, dimy))
 
 # M is of shape shape dimx / dimy ^ 4
@@ -39,17 +39,18 @@ for i in range(Tot.shape[2]):
 reg = 0.0015
 reg_m = 0.5
 
-start_time = time.time()
-G2D = barycenter_unbalanced_sinkhorn2D(
-    Tot, Cx, Cy, reg, reg_m, weights=None,
-    numItermax=100, stopThr=1e-4, verbose=True,
-    log=True, logspace=True, reg_K=1e-16)
-print(time.time() - start_time, "s cpu")
-start_time = time.time()
-G2Dw = barycenter_unbalanced_sinkhorn2D_wind(
-    Tot, Cxs, Cys, reg, reg_m, weights=None, numItermax=100,
-    stopThr=1e-4, verbose=True, log=True, logspace=True, reg_K=1e-16)
-print(time.time() - start_time, "s cpu")
+# start_time = time.time()
+# G2D = barycenter_unbalanced_sinkhorn2D(
+#     Tot, Cx, Cy, reg, reg_m, weights=None,
+#     numItermax=100, stopThr=1e-4, verbose=True,
+#     log=True, logspace=True, reg_K=1e-16)
+# print(time.time() - start_time, "s cpu")
+# start_time = time.time()
+# G2Dw = barycenter_unbalanced_sinkhorn2D_wind(
+#     Tot, Cxs, Cys, reg, reg_m, weights=None, numItermax=100,
+#     stopThr=1e-4, verbose=True, log=True, logspace=True, reg_K=1e-16)
+# print(time.time() - start_time, "s cpu")
+
 Tot_gpu = cp.array(Tot)
 (Cx_gpu, Cy_gpu) = (cp.array(Cx), cp.array(Cy))
 (Cxs_gpu, Cys_gpu) = (cp.array(Cxs), cp.array(Cys))

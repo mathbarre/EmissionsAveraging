@@ -11,7 +11,7 @@ basepath = '../data/permian_wind_reprojected/'
 
 (A, dimx, dimy, wind, y_over_x_ratio) = load_data(
     basepath, quality_thr=1, iswind=(3, 4))
-A = preprocess(A[100:200, :], normalize=(lambda x: x/np.nanmean(x)))
+A = preprocess(A[:, :], normalize=(lambda x: x/np.nanmean(x)))
 Tot = preprocess(A, to_2D=(dimx, dimy))
 
 # M is of shape shape dimx / dimy ^ 4
@@ -40,9 +40,9 @@ Gtest = ot.barycenter_unbalanced(
     stopThr=1e-4, log=True, verbose=True, tau=1e18)
 start_time = time.time()
 G2D = barycenter_unbalanced_sinkhorn2D(
-    Tot, Cx, Cy, 0.0015, reg_m, weights=None,
+    Tot, Cx, Cy, reg, reg_m, weights=None,
     numItermax=300, stopThr=1e-4, verbose=True,
-    log=True, logspace=True, reg_K=1e-16)
+    log=True, logspace=False, reg_K=1e-16)
 print(time.time()-start_time)
 G2Dw = barycenter_unbalanced_sinkhorn2D_wind(
     Tot, Cxs, Cys, reg, reg_m, weights=None, numItermax=300,

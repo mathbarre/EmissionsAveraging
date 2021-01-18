@@ -5,6 +5,7 @@ from CH4Avg.utils.preprocessing import load_data, preprocess
 import ot
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 basepath = '../data/permian_wind_reprojected/'
 
@@ -37,10 +38,12 @@ reg_m = 0.5
 Gtest = ot.barycenter_unbalanced(
     A.T, M, reg, reg_m, method="sinkhorn_stabilized",
     stopThr=1e-4, log=True, verbose=True, tau=1e18)
+start_time = time.time()
 G2D = barycenter_unbalanced_sinkhorn2D(
-    Tot, Cx, Cy, reg, reg_m, weights=None,
+    Tot, Cx, Cy, 0.0015, reg_m, weights=None,
     numItermax=300, stopThr=1e-4, verbose=True,
-    log=True, logspace=False, reg_K=1e-16)
+    log=True, logspace=True, reg_K=1e-16)
+print(time.time()-start_time)
 G2Dw = barycenter_unbalanced_sinkhorn2D_wind(
     Tot, Cxs, Cys, reg, reg_m, weights=None, numItermax=300,
     stopThr=1e-4, verbose=True, log=True, logspace=False, reg_K=1e-16)

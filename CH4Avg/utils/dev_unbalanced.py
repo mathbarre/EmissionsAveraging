@@ -3,13 +3,15 @@
 Regularized Unbalanced OT solvers
 """
 
-# Author: Hicham Janati <hicham.janati@inria.fr>
-# License: MIT License
+# Author: based on code from Hicham Janati <hicham.janati@inria.fr>
+
 
 from __future__ import division
 import warnings
 import numpy as np
+#import cupy as cp
 from numba import njit
+
 
 import line_profiler
 import atexit
@@ -1001,7 +1003,7 @@ def logsumexp_stream(X):
             res[i,j] = np.log(r) + alpha
     return res
  
-#@profile
+
 def prod_separable_logspace(Cx,Cy,gamma,v):
     """
     implementation of Algorithm 3 of 
@@ -1058,24 +1060,26 @@ def nb_prod_separable_logspace(Cx,Cy,gamma,v):
     dimx,dimy,n_hist,_ = v.shape
     R = np.zeros((dimx,dimy,n_hist))
     for i in range(n_hist):
-        x = np.zeros((dimy,dimx,dimy))
+        x = np.zeros((dimx,dimy,dimy))
         for l in range(dimy):
-            x[l,:,:] = -Cy[:,l]/gamma + v[:,l,i,:]
-        mx = nb_max_axis_0(x)
-        for xi in range(dimx):
-            for yi in range(dimy):
-                if mx[xi,yi] == -np.inf :
-                    mx[xi,yi]=0
-        A = np.log(np.exp(x-mx).sum(axis=0))+mx
-        y = np.zeros((dimx,dimx,dimy))
+            x[:,:,l] = -Cy[:,l]/gamma + v[:,l,i,:]
+        # mx = nb_max_axis_0(x)
+        # for xi in range(dimx):
+        #     for yi in range(dimy):
+        #         if mx[xi,yi] == -np.inf :
+        #             mx[xi,yi]=0
+        # A = np.log(np.exp(x-mx).sum(axis=0))+mx
+        A = logsumexp_stream(x)
+        y = np.zeros((dimx,dimy,dimx))
         for k in range(dimx):
-            y[k,:,:] = -Cx[:,k,:]/gamma + A[k,:]
-        my = nb_max_axis_0(y)
-        for xi in range(dimx):
-            for yi in range(dimy):
-                if my[xi,yi] == -np.inf :
-                    my[xi,yi]=0
-        R[:,:,i] = np.log(np.exp(y-my).sum(axis=0))+my
+            y[:,:,k] = -Cx[:,k,:]/gamma + A[k,:]
+        # my = nb_max_axis_0(y)
+        # for xi in range(dimx):
+        #     for yi in range(dimy):
+        #         if my[xi,yi] == -np.inf :
+        #             my[xi,yi]=0
+        # R[:,:,i] = np.log(np.exp(y-my).sum(axis=0))+my
+        R[:,:,i] = logsumexp_stream(y)
     return R
 
 
@@ -1379,14 +1383,18 @@ def barycenter_unbalanced_sinkhorn2D_wind(A, Cxs,Cys, reg, reg_m, weights=None,
         err = 1.
         Kx = np.exp(-Cxs/reg)
         Ky = np.exp(-Cys/reg)
+        # Kx = np.exp(-Cxs/reg).swapaxes(1,2).swapaxes(0,1) # n_image, dimx, dimx
+        # Ky = np.exp(-Cys/reg).swapaxes(1,2).swapaxes(0,1) # n_image, dimy, dimy
         for i in range(numItermax):
             uprev = u.copy()
             vprev = v.copy()
             qprev = q.copy()
 
             Kv = prod_sep(Kx,Ky,v)
+            #Kv = np.matmul(np.matmul(Kx,v.swapaxes(1,2).swapaxes(0,1)),Ky).swapaxes(0,1).swapaxes(1,2)
             #Kv = np.diagonal(np.tensordot(np.diagonal(np.tensordot(Kx,v,axes=([1],[0])),axis1=1,axis2=3),Ky,axes=([1],[0])),axis1=1,axis2=3)          
             u = (A / (Kv+reg_K)) ** fi
+            #Ktu = np.matmul(np.matmul(Kx.swapaxes(1,2),u.swapaxes(1,2).swapaxes(0,1)),Ky.swapaxes(1,2)).swapaxes(0,1).swapaxes(1,2)
             Ktu = prod_sep(Kx.swapaxes(0,1),Ky.swapaxes(0,1),u)
             #Ktu = np.diagonal(np.tensordot(np.diagonal(np.tensordot(Kx.swapaxes(0,1),u,axes=([1],[0])),axis1=1,axis2=3),Ky.swapaxes(0,1),axes=([1],[0])),axis1=1,axis2=3)
             

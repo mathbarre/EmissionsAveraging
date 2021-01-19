@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 
-def load_data(ptth, quality_thr=None, iswind=None):
+def load_data(ptth, quality_thr=None, iswind=None, window=None):
     """
     Input
     -pthh : String, path to the folder containing the tiff images
@@ -27,9 +27,9 @@ def load_data(ptth, quality_thr=None, iswind=None):
                 ptth = os.path.join(root, name)
                 dataset = rasterio.open(ptth)
                 # x latitude, y longitude
-                dimx, dimy = dataset.shape
                 y_over_x_ratio = abs(dataset.transform[0]/dataset.transform[4])
-                data = dataset.read()
+                data = dataset.read(window=window)
+                dimx, dimy = data.shape[1:]
                 if not(quality_thr is None):
                     data[0, data[1, :, :] <= quality_thr] = np.nan
                 a = np.clip(data[0, :, :].flatten(), 0, np.inf)

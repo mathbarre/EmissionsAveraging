@@ -25,12 +25,12 @@ M = CostMtx(dimx, dimy, y_over_x_ratio=y_over_x_ratio)
     (Cy.shape[0], Cy.shape[0], Tot.shape[2])))
 
 # negative because we want to "reverse" the effect of the wind
-wind_factor = -0.15
+wind_factor = 5
 for i in range(Tot.shape[2]):
     (Cxs[:, :, i], Cys[:, :, i]) = CostMtx(
         dimx, dimy, y_over_x_ratio=y_over_x_ratio,
         separable=True, wind=wind[:, i],
-        wind_factor=wind_factor)
+        wind_factor=wind_factor, cost="wind_new")
 
 reg = 0.0025
 reg_m = 0.5

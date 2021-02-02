@@ -10,9 +10,12 @@ import cupy as cp
 
 def prod_separable_logspace(Cx, Cy, gamma, v):
     """
-    implementation of Algorithm 3 of 
-    Wasserstein Dictionary Learning: Optimal Transport-based unsupervised non-linear dictionary learning
-    (Morgan Schmitz, Matthieu Heitz, Nicolas Bonneel, Fred Maurice Ngolè Mboula, David Coeurjolly, Marco Cuturi, Gabriel Peyré, Jean-Luc Starck)
+    implementation of Algorithm 3 of
+    Wasserstein Dictionary Learning: Optimal Transport-based
+    unsupervised non-linear dictionary learning
+    (Morgan Schmitz, Matthieu Heitz, Nicolas Bonneel,
+    Fred Maurice Ngolè Mboula, David Coeurjolly,
+    Marco Cuturi, Gabriel Peyré, Jean-Luc Starck)
     ----------
     Input
     Cx : np.ndarray (dimx, dimx)
@@ -175,7 +178,8 @@ def barycenter_unbalanced_sinkhorn2D_gpu(A, Cx, Cy, reg, reg_m, weights=None,
             u = cp.power(cp.divide(A, (Kv+reg_K)), fi)
             Ktu = cp.tensordot(cp.tensordot(cp.transpose(Kx), u, axes=([1], [0])),
                                cp.transpose(Ky), axes=([1], [0])).swapaxes(1, 2)
-            q = cp.power(cp.dot(cp.power(Ktu, (1 - fi)), weights), (1 / (1 - fi)))
+            q = cp.power(cp.dot(cp.power(Ktu, (1 - fi)), weights),
+                         (1 / (1 - fi)))
             v = cp.power(cp.divide(q[:, :, None], (Ktu+reg_K)), fi)
 
             if (cp.any(Ktu == 0)
@@ -326,20 +330,23 @@ def barycenter_unbalanced_sinkhorn2D_wind_gpu(A, Cxs, Cys, reg, reg_m,
         u = cp.ones((dimx, dimy))/dimx/dimy
         q = cp.ones((dimx, dimy))/dimx/dimy
         err = 1.
-        Kx = cp.exp(-Cxs/reg).swapaxes(1, 2).swapaxes(0, 1)  # n_image, dimx, dimx
-        Ky = cp.exp(-Cys/reg).swapaxes(1, 2).swapaxes(0, 1)  # n_image, dimy, dimy
+        # n_image, dimx, dimx
+        Kx = cp.exp(-Cxs/reg).swapaxes(1, 2).swapaxes(0, 1)
+        # n_image, dimy, dimy
+        Ky = cp.exp(-Cys/reg).swapaxes(1, 2).swapaxes(0, 1)
         for i in range(numItermax):
             uprev = u.copy()
             vprev = v.copy()
             qprev = q.copy()
 
             Kv = cp.matmul(cp.matmul(Kx, v.swapaxes(1, 2).swapaxes(0, 1)),
-                        Ky).swapaxes(0, 1).swapaxes(1, 2)
+                           Ky).swapaxes(0, 1).swapaxes(1, 2)
             u = cp.power(cp.divide(A, (Kv+reg_K)), fi)
             Ktu = cp.matmul(cp.matmul(Kx.swapaxes(1, 2),
-                                    u.swapaxes(1, 2).swapaxes(0, 1)),
+                                      u.swapaxes(1, 2).swapaxes(0, 1)),
                             Ky.swapaxes(1, 2)).swapaxes(0, 1).swapaxes(1, 2)
-            q = cp.power(cp.dot(cp.power(Ktu, (1 - fi)), weights), (1 / (1 - fi)))
+            q = cp.power(cp.dot(cp.power(Ktu, (1 - fi)), weights),
+                         (1 / (1 - fi)))
             v = cp.power(cp.divide(q[:, :, None], (Ktu+reg_K)), fi)
 
             if (cp.any(Ktu == 0)

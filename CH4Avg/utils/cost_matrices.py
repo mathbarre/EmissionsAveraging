@@ -22,7 +22,7 @@ def CostMtx(dimx, dimy, y_over_x_ratio=1, cost="euclidean", separable=False, win
             return M/M.max()
         else:
             xs = np.arange(dimx)
-            ys = np.arange(dimy)
+            ys = np.arange(dimy)*y_over_x_ratio
             Cx = np.array(xs[:, None]-xs, dtype=np.float)**2
             Cy = np.array(ys[:, None]-ys, dtype=np.float)**2
             if not(wind is None):
@@ -30,8 +30,31 @@ def CostMtx(dimx, dimy, y_over_x_ratio=1, cost="euclidean", separable=False, win
                 Cy += wind_factor*wind[1]*(ys[:, None]-ys)*np.abs((ys[:, None]-ys))
             mx = Cx.max()+Cy.max()
             return (Cx/mx, Cy/mx)
+
     if cost == "wfr":
         return Costwfr(dimx, dimy, delta)
+
+    if cost == "wind_new":
+        if not(separable):
+            x = np.column_stack(np.nonzero(np.ones((dimx, dimy)))) \
+                * np.array([1, y_over_x_ratio])
+            M = (x[:, 0, None]-x[:, 0]) ** 2 + (x[:, 1, None]-x[:, 1]) ** 2
+            if not(wind is None):
+                X = np.dot(x, wind)
+                M += wind_factor*(X[:, None]-X)
+            return M/M.max()
+        else:
+            xs = np.arange(dimx, dtype=np.float)
+            ys = np.arange(dimy, dtype=np.float)*y_over_x_ratio
+            X = xs[:, None]-xs
+            Y = ys[:, None]-ys
+            if not(wind is None):
+                X -= wind_factor*wind[0]
+                X -= wind_factor*wind[1]
+            Cx = np.array(X, dtype=np.float)**2
+            Cy = np.array(Y, dtype=np.float)**2
+            mx = Cx.max()+Cy.max()
+            return (Cx/mx, Cy/mx)
     return "cost not implemented yet"
 
 
